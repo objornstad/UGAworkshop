@@ -1,0 +1,98 @@
+---
+title: "Session 1"
+author: "Ottar N. Bjornstad"
+date: "2023-11-08"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+RStudio [https://www.rstudio.com] is an interface to the R language which is together with Python is the most widely used programming platform in many fields of computing. It is known for it's extremely broad statistical capabilities: cran.r-project.org serves out more than 10k add-on packages in addition to the R base... However in this workshop we will use it mainly for its raw numerical and computational power. To prep for the workshop, after installing Rstudio we need to install the *epimdr2* package either via the menu: ``Tools -> Install packages'' or the console:
+
+```{r eval=FALSE}
+install.packages("epimdr2")
+```
+
+Once a package has been installed, it is installed forever but needs to be attached to be used:
+```{r eval=FALSE}
+install.packages("epimdr2")
+```
+
+There are an enormous amount of online and printed resources for R. One usefull place is a search engine sole devoted to sifting through R related materials [https://rseek.org].
+
+**Six Things**
+R may seem complicated, but the language itself is really only made up of six'ish things that is used to build objects.
+
+**Vectors** are made forexample using the c() concatenate function... function are executed using round brackets:
+```{r}
+x=c(1,5,3, 2, 23, 0)
+x
+y=rep(1.25, 20)
+y
+```
+The [] indicate the element number for subsetting:
+```{r}
+x[4]
+x[c(2,5)]
+```
+
+**Matrices** are 2D arrays (there are higher D arrays also but we wont use them) which we subset by row column. or element:
+
+```{r}
+z=matrix(x, nrow=3, byrow=TRUE)
+z
+z[2,]
+z[,1]
+z[3,2]
+```
+
+**Data.frames** are like simple spread-sheets. Easiest to generate by exporting a sheet to a comma separated  file and then read in (note that names has to be in quotes otherwise R will try to evaluate it as an object), data.frames are accessed using &#36;name or [,2]:
+```{r}
+meas=read.csv("meas.csv", header=TRUE)
+head(meas)
+head(meas)$London
+head(meas)[,2]
+```
+
+**Lists** are unstructured collection objects that can be accessed using &#36;name or [[]] element number:
+
+```{r}
+lst=list(a=x, b=y, pip=z)
+lst$pip
+lst[[1]]
+```
+
+
+**Functions** does things (when followed by () otherwise the function will just be displayed). We can for example use the plot() funtion to plot the measles data:
+
+```{r pressure, echo=FALSE}
+plot(London~time, data=meas)
+```
+
+The ~ signifies a formula, i.e London as a function of time. We would get the same result from plot(x=meas$&#36;time, y=meas&#36;London). Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+We can also write our own functions which will be very important during the workshop:
+```{r}
+myfn=function(arg){
+ss=sum(arg)
+return(ss)
+}
+
+myfn(y)
+```
+
+Finally, loops are when we want to repeat something many times (we will visit more on this tomorrow):
+
+```{r}
+for(i in 1:4){
+  cat(x[1:i], "\n")
+}
+```
+The cat() function simply prints to screen and the colon operator generates a vector of a:b whole numbers from a to b.
+
