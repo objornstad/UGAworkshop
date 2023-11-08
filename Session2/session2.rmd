@@ -1,0 +1,260 @@
+---
+title: "The SIR model, Integrating ODE's and a ShinyApp"
+author: Ottar N. Bjørnstad
+output: html_document
+runtime: shiny
+---
+
+This Rmarkdown of the SIR model was written by Ottar N. Bjørnstad and is released with a CC-BY-NC lisence for anyone to improve and re-share (acknowledging origin). Please email me a copy of update (onb1 at psu dot edu). The app was originally developed as part of the epimdr2-package (https://cran.r-project.org/package=epimdr2; Bjørnstad 2023). The app requires epimdr2 to run
+
+
+```{r, out.width="50%", echo=FALSE, fig.align='left'}
+knitr::include_graphics("https://github.com/objornstad/ecomodelmarkdowns/blob/master/f2-1-sir.png?raw=true")
+```
+
+The basic equations for the flow of hosts between **S**usceptible, **I**nfectious and **R**ecovered
+ compartments are:
+ 
+$\begin{aligned}
+    \frac{dS}{dt} =& \underbrace{\mu N}_{\mbox{birth}} - \underbrace{\beta I \frac{S}{N}}_{\mbox{infection}} - \underbrace{\mu S}_{\mbox{death}} \label{eq:sirs}\\
+     \frac{dI}{dt} =& \underbrace{\beta I \frac{S}{N}}_{\mbox{infection}} - \underbrace{\gamma I}_{\mbox{recovery}} - \underbrace{\mu I}_{\mbox{death}}  \label{eq:siri}\\
+     \frac{dR}{dt} =& \underbrace{\gamma I}_{\mbox{recovery}} - \underbrace{\mu R}_{\mbox{death}} \label{eq:sirr}
+\end{aligned}$
+
+The assumptions of this version of the SIR model are:
+
+- The infection circulates 
+     in a population of size $N$, with a per capita ``background"
+     death rate, $\mu$, which is balanced by a
+     birth rate $\mu N$. From the sum of the equations $dN/dt=0$ and $N=S+I+R$ is constant.
+
+- The infection causes morbidity (not mortality).
+
+- Newborns are recruited directly into the susceptible
+     class at birth.
+
+- Transmission of infection from infectious to
+     susceptible individuals is controlled by a bilinear contact
+     term $\beta I \frac{S}{N}$, from the assumption that the $I$ infectious individuals are independently and randomly
+     mixing with all other individuals, so the fraction $S/N$ is with susceptible individuals; $\beta$ is the transmission rate.
+
+- Infected individuals move directly into the 
+     the infectious class and remains there 
+     for an average infectious period of $1/(\gamma+\mu)$ time units.
+
+- Recovered individuals are immune
+     from re-infection for life.
+numerical integration of a variety of different ODE models will be required. While the models differ, the basic recipe is generally the same: (1) define a R-function for the general system of equations, (2) specify the time points at which we want the integrator to save the state of the system, (3) provide values for the parameters, (4) give initial values for all state variables, and finally (5) invoke the ode()-function from the deSolve package.  
+ 
+```{r}
+require(epimdr2)
+require(deSolve)
+```
+ 
+**STEP 1**: Define the function (often called the gradient functions) for the equation systems. The deSolve package requires the function to take the following parameters: time *t* a vector with the values for the state variables (in this case $S$, $I$ and $R$) *y* and parameter values 
+ (for $\beta$, $\mu$, $\gamma$, and $N$) *parameters*:
+
+```{r}
+ sirmod=function(t, y, parameters){
+   #Pull state variables from y vector
+   S=y[1]
+   I=y[2]
+   R=y[3]
+   #Pull parameter values from the input vector
+   beta=parameters["beta"]
+   mu=parameters["mu"]
+   gamma=parameters["gamma"]
+   N=parameters["N"]
+   #Define equations
+   dS = mu * (N  - S)  - beta * S * I / N
+   dI = beta * S * I / N - (mu + gamma) * I
+   dR = gamma * I - mu * R
+   res=c(dS, dI, dR)
+   #Return list of gradients
+   list(res)
+ }
+```
+
+**STEP 2--4**: Specify the time points at which we want *ode* to record the states of the system (here we use a half year with weekly time increments as specified in the vector *times*), the parameter values (in this case as specified in the vector *paras*), and starting
+ conditions (specified in *start*). If we model the fraction of individuals in each class, we set $N=1$. Let's consider a disease with an infectious period of 2 weeks ($\gamma = 365/14$ per year) for the closed epidemic (no births or deaths so $\mu = 0$). A reproduction number of 4 which implies a transmission rate $\beta $ of 2. For our starting conditions assume that $0.1\%$ of the initial population is infected and the remaining fraction is susceptible.
+ 
+```{r}
+times  = seq(0, 0.5, by=1/365)
+ paras  = c(mu = 0, N = 1, R0=4, gamma = 365/14)
+ paras["beta"]=paras["R0"]*(paras["gamma"]+paras["mu"])
+ start = c(S=0.999, I=0.001, R = 0)*paras["N"]
+```
+
+**STEP 5**: Feed *start* values, *times*, the gradient function *sirmod* and parameter vector *paras to the ode()-function as suggested by *args(ode)*. For further details on usage, do *?function on the R command line, \ie *?ode* in this instance. For convenience we convert the output to 
+a data frame (ode() returns a list). The head() function shows the first 5 rows of *out* and *round(,3)* rounds the number to three decimals.
+
+**Question**: 1. What are the interpretation of the values of the parameters? 
+
+```{r}
+out = ode(y = start, times = times, func = sirmod, 
+     parms = paras)
+out=as.data.frame(out)
+head(round(out, 3))
+```
+
+Plot:
+
+```{r}
+ plot(x = out$time, y = out$S, ylab = "Fraction", 
+      xlab = "Time", type = "l")
+ lines(x = out$time, y = out$I, col = "red")
+ lines(x = out$time, y = out$R, col = "green")
+```
+
+R has advanced capabilities of directly producing interactive web pages through the **shiny** package using the ui() and server() syntax... This is a bit elaborate elaborate for this workshop but a silly basic example is in the "shinyex.rmd" file. A shiny app for the SIR model is launched by "run document" on menu line:
+
+```{r, echo=FALSE}
+
+
+#' Launch a shiny-app simulating the SIR model
+#' @details
+#' Launch app for details
+#' @examples
+#' if(interactive()){sir.app}
+#' @export
+sir.app=shinyApp(
+# This creates the User Interface (UI)
+ui <- pageWithSidebar(
+headerPanel("The SIR model"),
+#The sidebar for parameter input
+sidebarPanel(
+#Sliders:
+sliderInput("R0", "R0:", 2,
+              min = 0.5, max = 20),
+sliderInput("infper", "Infectious period (days)", 5,
+              min = 1, max = 100),
+sliderInput("mu", "birth rate (yr^-1):", 5,
+              min = 0, max = 100),
+sliderInput("T", "Time range:",
+                  min = 0, max = 1, value = c(0,1))
+),
+#Main panel for figures and equations
+mainPanel(
+  #Multiple tabs in main panel
+  tabsetPanel(
+      #Tab 1: Time plot (plot1 from server)
+      tabPanel("Time", plotOutput("plot1")), 
+      #Tab 2: Phase plot (plot2 from server)
+      tabPanel("Phase plane", plotOutput("plot2", height = 500)),
+      #Tab 3: MathJax typeset equations 
+      tabPanel("Equations", 
+           withMathJax(
+             helpText("Susceptible $$\\frac{dS}{dt} = \\underbrace{\\mu N}_{birth} - \\underbrace{\\mu S}_{death} - \\underbrace{\\frac{\\beta(t) I S}{N}}_{infection}$$"),
+               helpText("Infe ctious $$\\frac{dI}{dt} = \\underbrace{\\frac{\\beta(t) I S}{N}}_{infection} - \\underbrace{\\mu I}_{death}-\\underbrace{\\gamma I}_{recovery}$$"),
+            helpText("Removed $$\\frac{dR}{dt} = \\underbrace{\\gamma I}_{recovery}  - \\underbrace{(\\mu R}_{death}$$"),
+           helpText("Transmission rate $$\\beta = R_0  (\\gamma + \\mu)$$"),
+           helpText("Reproduction number $$R_0 =  \\frac{1}{\\gamma + \\mu} \\frac{\\beta N}{N} = \\frac{\\beta}{\\gamma + \\mu}$$")             
+           ))
+  ))), #End of ui()
+
+
+# This creates the 'behind the scenes' code (Server)
+server <- function(input, output) {
+  #Gradient function for SIR model
+  sirmod=function(t, x, parameters){
+    S=x[1]
+    I=x[2]
+    R=x[3]
+    R0=parameters["R0"]
+    mu=parameters["mu"]
+    gamma=parameters["gamma"]
+    N=parameters["N"]
+    beta=R0*(gamma+mu)
+    dS = mu * (N  - S)  - beta * S * I / N
+    dI = beta * S * I / N - (mu + gamma) * I
+    dR = gamma * I - mu * R
+    res=c(dS, dI, dR)
+    list(res)
+  }
+
+ #Plot1: renderPlot to be passed to UI tab 1
+  output$plot1 <- renderPlot({
+  #input\$xx's are pulled from UI
+  times  = seq(0, input$T[2], by=1/1000)
+  paras  = c(mu = input$mu, N = 1, R0 =  input$R0, gamma =
+    365/input$infper)
+  start = c(S=0.999, I=0.001, R = 0)
+  paras["beta"] = with(as.list(paras), R0*(gamma+mu))
+  #Resonant period
+  AA=with(as.list(paras), 1/(mu*(R0-1)))
+  GG=with(as.list(paras), 1/(mu+gamma))
+  rp=round(2*pi*sqrt(AA*GG),2)
+
+  #Integrate ode with parameters pulled from UI
+  out=ode(start,  times, sirmod, paras)
+  out=as.data.frame(out)
+
+  #Plot1
+  sel=out$time>input$T[1]&out$time<input$T[2]
+  plot(x=out$time[sel], y=out$S[sel], ylab="fraction", xlab="time", type="l",
+  ylim=range(out[sel,-c(1,4)]))
+  title(paste("R0=", paras["R0"], "Period=", rp))
+  lines(x=out$time[sel], y=out$I[sel], col="red")
+  lines(x=out$time[sel], y=out$R[sel], col="green")
+  legend("right",
+        legend=c("S", "I", "R"),
+        lty=c(1,1,1),
+         col=c("black", "red", "green"))
+   })
+
+ #Plot2: renderPlot to be passed to UI tab 2
+  output$plot2 <- renderPlot({
+  times  = seq(0, input$T[2], by=1/1000)
+  paras  = c(mu = input$mu, N = 1, R0 =  input$R0, gamma =
+    365/input$infper)
+  paras["beta"] = with(as.list(paras), R0*(gamma+mu))
+
+  start = c(S=0.999, I=0.001, R = 0)
+ 
+  #Gradient function used for phaseR phase-plot
+  simod=function(t, y, parameters){
+   S=y[1]
+   I=y[2]
+   beta=parameters["beta"]
+   mu=parameters["mu"]
+   gamma=parameters["gamma"]
+   N=parameters["N"]   
+   dS = mu * (N  - S)  - beta * S * I / N
+   dI = beta * S * I / N - (mu + gamma) * I
+   res=c(dS, dI)
+   list(res)
+  }
+
+  #Integrate simod
+  out=ode(start[-3], times, simod, paras)
+  out=as.data.frame(out)
+
+  AA=with(as.list(paras), 1/(mu*(R0-1)))
+  GG=with(as.list(paras), 1/(mu+gamma))
+  rp=round(2*pi*sqrt(AA*GG),2)
+  
+  plot(x=out$S, y=out$I, xlab="Fraction suceptible", ylab="Fraction infected", type="l")
+   title(paste("R0=", paras["R0"], "Period=", rp))
+ #Add vector field
+  fld=flowField(simod, xlim=range(out$S), ylim=range(out$I), 
+  parameters=paras, system="two.dim", add=TRUE,
+  ylab="I", xlab="S")
+  #Add isoclines
+  abline(v=1/paras["R0"], col="green")
+  curve(paras["mu"]*(1-x)/(paras["beta"]*x), min(out$S), max(out$S), add=TRUE, col="red")
+    legend("topright",
+        legend=c("S-isocline", "I-isocline"),
+        lty=c(1,1),
+         col=c("red", "green"))
+   })
+  } #End of server()
+)
+sir.app
+```
+
+References:
+
+Bjørnstad, O.N. (2018) Epidemics: Models and Data using R. Springer (312 pp) ISBN 978-3-319-97487-3 https://www.springer.com/gp/book/9783319974866
+
+
+

@@ -1,0 +1,44 @@
+---
+title: "shinyex"
+author: "Ottar N. Bjornstad"
+date: '2022-03-31'
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+xcoor=c(1,2)
+ycoor=c(2,1)
+circ=c(1,3)
+symbols(x=xcoor, y=ycoor, circles=circ, inches=.1)
+```
+
+You can embed Shiny inputs and outputs in your document. Outputs are automatically updated whenever inputs change.  This demonstrates how a standard R plot can be made interactive by wrapping it in the Shiny `renderPlot` function. The `selectInput` and `sliderInput` functions create the input widgets used to drive the plot.
+
+```{r shiny}
+ui = pageWithSidebar(
+  headerPanel("Plot"),
+  sidebarPanel(
+    sliderInput("a", "a:", 0.05,
+              min = 0, max = 0.2),
+        sliderInput("b", "b:", 0.05,
+              min = 0, max = 0.2)
+  ),
+  mainPanel("plot", plotOutput("plot1")))
+
+server = function(input, output){
+output$plot1=renderPlot({
+xcoor=c(1,2)
+ycoor=c(2,1)
+circ=c(input$a,input$b)
+symbols(x=xcoor, y=ycoor, circles=circ, inches=FALSE)
+})
+}
+
+shinyApp(ui, server)
+```
