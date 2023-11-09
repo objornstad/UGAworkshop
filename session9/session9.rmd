@@ -1,0 +1,194 @@
+---
+title: "Session 9"
+author: "Ottar N. Bjørnstad"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+**Seasonality and Recurrent epidemics**
+
+Host behavior and environmental factors influence disease dynamics in a variety of ways 
+through affecting the pathogen such as the survival of infective
+stages outside the host and via host demographies from changing birth-rates, carrying
+capacitities, social organization, etc. Sometimes such influences have
+relatively subtle consequences (eg slight changes in $R_0$) as is likely the effect of absolute humidity on influenza transmission. Other
+times the consequences are substantial by changing the dynamics
+qualitatively such as inducing multiannual or chaotic epidemics  or 
+initiating ecological cascades.  It is useful to
+distinguish between trends, predictable variability (such as
+seasonality), or
+non-predictable variability due to environmental and demographic stochasticity. 
+Some level of seasonality in transmission is very common in infectious disease dynamics and is usually reflected in seasonal cycles in incidence; Seasonality in incidence is the norm even for persistent infections for which prevalence may remain relatively stable. Influenza is the poster-child for seasonality in infection risk in the public eye. 
+
+We can illustrate various types of seasonality using four infectious diseases in Pennsylvania contained in the *paili*, *palymes*, *pagiard* and *pameasle* data sets. The below is a simple function to extract and plot weekly average incidence (and standard errors) through the year from time series. Weekly incidence data occasionally has 53 reporting weeks (because years are 52.14 weeks, and leap years are 52.28 weeks). The function omits these extras.
+
+```{r}
+ppp = function(wk, x){
+require(plotrix)
+x = x[wk<53]
+wk = wk[wk<53]
+ses = sapply(split(x, wk), mean, na.rm=TRUE)
+sesv = sapply(split(x, wk), sd, na.rm =
+     TRUE)
+sesdv = sesv/sapply(split(x, wk), sd, na.rm =
+     TRUE)
+plotCI(x = c(1:52), y = ses, ui = ses+sesdv, 
+     li = ses-sesdv, xlab = "Week", ylab = "Incidence")
+}
+```
+
+```{r}
+require(epimdr2)
+par(mfrow=c(2,2)) #A four panel plot
+ppp(paili[, "WEEK"], paili[,"PENNSYLVANIA"])
+title("ILI mortality (1972-98)")
+ppp(palymes[,"WEEK"], palymes[,"PENNSYLVANIA"])
+title("Lymes (2006-14)")
+ppp(pagiard[,"WEEK"], pagiard[,"PENNSYLVANIA"])
+title("Giardia (2006-14)")
+ppp(pameasle[,"WEEK"], pameasle[,"PENNSYLVANIA"])
+title("Measles (1928-69)")
+```
+
+Seasonality arises from a variety of causes depending on the mode of transmission of the pathogen: air-borne (like influenza), vector-borne or water/food-borne. Lyme's disease, for example, is caused by tick-vectored bacteria in the genus *Borrelia*. The figure shows the sharply seasonal incidence of human cases of Lyme's in Pennsylvania. The seasonality is the combined effect of seasonality in tick activity levels and human use of wilderness. Most mosquito-vectored pathogens also show strong seasonality because of the temperature- and precipitation-dependence of the vector life cycle. The seasonality of cholera infections, caused by the *Vibrio cholerae* bacterium, is among the most studied water-borne pathogens. The seasonality in southeast Asia is caused by rainfall variation associated with the monsoon  season. However, other water-borne diseases like giardiasis caused by  protozoans in the genus *Giardia* also show marked seasonality. Host behavior can further cause seasonality in contact rates. Childhood disease dynamics, for example, are often shaped by ``term-time'' forcing: increased transmission when schools are open. Weekly average pre-vaccination incidence of measles in Pennsylvania, for instance, collapses as school closes for the summer only to resume robust circulation after the vacation ends. Additionally, seasonal urban-rural migration in Niger, has been shown to  generate strong seasonality in measles transmission.  
+
+**The Seasonally Forced SEIR Model**
+To study the effect of seasonality in transmission we modify the SEIR model
+We first consider the gradient functions for the undriven system. As in Sect. \ref{sec:ras}, we use *with(as.list(\ldots))* to evaluate the expression using the definitions in the *parms* vector to simplify coding.
+```{r}
+seirmod=function(t, y, parms) {
+    S = y[1]
+    E = y[2]
+    I = y[3]
+    R = y[4]
+
+    with(as.list(parms), {
+        dS = mu * (N - S) - beta * S * I/N
+        dE = beta * S * I/N - (mu + sigma) * E
+        dI = sigma * E - (mu + gamma) * I
+        dR = gamma * I - mu * R
+        res = c(dS, dE, dI, dR)
+        list(res)
+    })
+}
+```
+
+We can simulate 10 years of dynamics using the basic recipe. The seasonally forced SEIR model has been successfully applied to understand the dynamics of measles and other immunizing childhood infections. To simulate a measles-like pathogen assume a latent period of 8 days and an infectious period of 5 days. Assume the initial host population to be  $0.1\%$ infectious, $6\%$ susceptibles and the rest immune; The $R_0$ of measles is typically quoted in the 13--20 range, which means that the equilibrium fraction of susceptibles is somewhere around $5\%$. For simplicity assume a host life span of 50 years and set $N=1$ to model the fraction in each compartment.
+
+```{r}
+require(deSolve)
+times  = seq(0, 10, by=1/120)
+paras  = c(mu = 1/50, N = 1, beta =  1000, 
+     sigma = 365/8, gamma = 365/5)
+start = c(S = 0.06, E = 0, I = 0.001, R = 0.939)
+```
+
+The $R_0$ for this system, assuming disease induced mortality is negligible, is $\frac{\sigma}{\sigma +\mu} \frac{\beta}{\gamma+\mu}$.We can verify that our choice of $\beta$
+places $R_0$ in the  measles-like  range. We use *quote* to define the equation for $R_0$.
+
+```{r}
+R0=quote(sigma/(sigma+mu) * beta / (gamma+ mu))
+with(as.list(paras), eval(R0))
+```
+
+The integrated ODEs plotted in time and in the phase plane reveales that, as is the case of the SIR model, the unforced SEIR model, predicts dampened oscillations toward the endemic equilibrium when $R_0$ is above one.
+```{r}
+out = as.data.frame(ode(start, times, seirmod, paras))
+par(mfrow = c(1,2))  #Two plots side by side 
+plot(times, out$I, ylab = "Prevalence", 
+     xlab = "Time", type = "l")
+plot(out$S, out$I, ylab = "Prevalence", 
+     xlab = "Susceptible", type = "l")
+```
+The Predicted prevalence from the SEIR model in time, and in the phase plane with $\mu = 1/50$, $N = 1$ (to model fractions), $\beta =  1000$, $\sigma = 365/8$ and $\gamma = 365/5$. Ten years are not long enough for the simulation to settle on the endemic equilibrium, but the dampened cycles are apparent.
+
+**Seasonality in $\beta$*
+The predicted dampened oscillations 
+toward an equilibrium is at odds with the recurrent outbreaks seen in many
+immunizing infections. Sustained oscillations require either additional
+predictable seasonal drivers. An important driver in human childhood infections  is seasonality in contact rates because of
+aggregation of children  during the school term. For simplicity we can analyze the consequences of seasonality by assuming sinusoidal forcing on the transmission rate according to $\beta(t) =  \beta_0 (1 + \beta_1 cos(2 \pi t))$. The mean transmission rate is $\beta_0$ but the realized transmission varies cyclically with a period of one time unit, and the magnitude of the seasonal variation is controlled by the parameter $\beta_1$. The modified gradient function is:
+
+```{r}
+seirmod2=function(t, y, parameters){
+  S=y[1]
+  E=y[2]
+  I=y[3]
+  R=y[4]
+
+ with(as.list(parameters),{
+  dS = mu * (N  - S)  - beta0 * (1+beta1*cos(2*pi*t))* S * I / N
+  dE = beta0 * (1+beta1*cos(2*pi * t))* S * I / N - (mu + sigma) * E
+  dI = sigma * E - (mu + gamma) * I
+  dR = gamma * I - mu * R
+  res=c(dS, dE, dI, dR)
+  list(res)
+})
+} 
+```
+
+With no seasonality the model predicts dampened oscillation, with moderate seasonality the prediction is low-amplitude annual outbreaks. However, as seasonality increases (to $\beta_1 = 0.2$, say) we start 
+seeing some surprising consequences of the seasonal forcing;
+the appearance of harmonic resonance between the internal cyclic dynamics of 
+the SEIR clockwork and the annual seasonal forcing function. 
+
+```{r}
+times  = seq(0, 100, by=1/120)
+paras  = c(mu = 1/50, N = 1, beta0 = 1000, beta1 = 0.2, 
+     sigma = 365/8, gamma = 365/5)
+start = c(S = 0.06, E = 0, I = 0.001, R = 0.939)
+out = as.data.frame(ode(start, times, seirmod2, paras))
+par(mfrow = c(1, 2)) #Side-by-side plot
+plot(times, out$I, ylab="Infected", xlab="Time", 
+     xlim = c(90, 100), ylim = c(0, 
+         max(out$I[11001:12000])), type = "l")
+plot(out$S[11001:12000], out$I[11001:12000], 
+         ylab = "Infected", xlab = "Susceptible", type = "l")
+```
+  
+The 10 last years of the forced SEIR model for $\beta_1=0.2$. Predicted prevalence and the S-I phase plane
+
+The emergent pattern of recurrence in the forced SEIR is the result of an interaction between the internal periodic clockwork (the damping period) of the SEIR flow and the externally imposed periodic forcing.
+
+The *seir.app* is a shiny for the seasonally forced model:
+```{r eval=FALSE}
+runApp(seir.app)
+```
+
+**Bifurcation analysis**
+
+We can make a more comprehensive summary of the consequences of seasonality on the SEIR-flow using a bifurcation analysis: a systematic search across a range of $\beta_1$ values. For annually forced models this is best done by strobing the system once each year. To study the long-term (asymptotic) dynamics we  discard the initial transient part of the simulation. In the below we hence use one data point per year for the last 42 years of simulation (which the *sel* variable flags) so that an annual cycle produces a single value (so will a fixed-point equilibrium), biannual cycles two values, etc. The resultant bifurcation plot shows when annual epidemics gives way to biannual cycles and finally chaotic dynamics as seasonality increases. The irregular dynamics with strong seasonality comes about because there is no simple resonant compromise between the internal clock and the external forcing function. We may think of it as resonance giving place to dissonance in the dynamical system. That stronger seasonality pushes measles from regular to irregular epidemics has been predicted by the theoretical literature.
+
+First define initial conditions and the sequence of parameter values to be considered for $\beta_1$ and then do the  numerical integration for each of its values:
+```{r}
+times = seq(0, 100, by = 1/120)
+start = c(S = 0.06, E = 0, I = 0.001, R = 0.939)
+beta1 = seq(0,0.25, length=101)
+#Matrix to store infecteds
+Imat = matrix(NA, ncol = 12001, nrow = 101)
+#Loop over beta1's
+for(i in 1:101){
+     paras  = c(mu = 1/50, N = 1, beta0 = 1000, 
+        beta1 = beta1[i], sigma = 365/8, gamma = 365/5)
+     out = as.data.frame(ode(start, times, 
+        seirmod2, paras))
+     Imat[i,] = out$I
+}
+```
+
+For the visualization arbitrarily select the prevalence at the beginning of the 4th month each year of the simulations and plot the values against the associated $\beta_1$ values for the bifurcation plot.
+```{r}
+sel = seq(7001, 12000, by = 120)  
+plot(NA, xlim = range(beta1), ylim = c(1E-7, 
+     max(Imat[,sel])), log = "y", xlab = "beta1",
+     ylab = "prevalence")
+for(i in 1:101){
+       points(rep(beta1[i], length(sel)), 
+          Imat[i, sel], pch=20)
+}
+```
+
+The bifurcation plot of prevalence at the beginning of the 4th month of each year against seasonality for the forced SEIR model.
+
+Thus, with measles-like parameters annual epidemics give way to biennial cycles at $\beta_1$ around $0.15$ corresponding to a seasonal coefficient of variation  (CV) in transmission of $10\%$ and chaos for $\beta_1$ just over $0.2$ corresponding to a CV of around $15\%$.
