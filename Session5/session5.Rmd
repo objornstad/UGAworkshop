@@ -1,0 +1,55 @@
+---
+title: "Session5"
+author: "Ottar N. Bjornstad"
+date: "2023-11-08"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+COVID-19 has loss of immunity.
+
+The SIRS model is:
+
+\begin{align}
+    \frac{dS}{dt} =& \underbrace{\mu N}_{\mbox{birth}} - \underbrace{\beta I \frac{S}{N}}_{\mbox{infection}}  + \underbrace{\omega R}_{\mbox{resusceptible}}- \underbrace{\mu S}_{\mbox{death}} \label{eq:sirss}\\
+     \frac{dI}{dt} =& \underbrace{\beta I \frac{S}{N}}_{\mbox{infection}} - \underbrace{\gamma I}_{\mbox{recovery}} - \underbrace{\mu I}_{\mbox{death}}  \label{eq:sirsi}\\
+     \frac{dR}{dt} =& \underbrace{\gamma I}_{\mbox{recovery}}  - \underbrace{\omega R}_{\mbox{lost immmunity}} - \underbrace{\mu R}_{\mbox{death}}, \label{eq:sirsr}
+\end{align}
+
+where $\omega$ is the rate of loss of immunity ($\sim 0.5 \mbox{ year}^{-1}$),  an infectious period ($1/\gamma$) of 3.8 days and maybe suggets an early $R_0$ of $2.9$. Modeling fractions ($N=1$) the weekly SIRS appropriate parameters are:
+
+```{r}
+N = 1
+gamma = 7 / 3.8 
+omega = 1 / (52 * 4)
+mu = 1 / (52 * 70)
+R0 = 2.9 
+```
+
+The call for back-calculating $\beta$ to get the right $R_0$ and gathering parameters is:
+
+```{r}
+#R0 = beta / (gamma + mu)
+beta = R0 * (gamma + mu)
+paras = c(beta = beta, gamma = gamma, 
+   mu = mu, omega = omega)
+```
+
+
+STEP 1:
+
+STEP 2:
+
+STEP 3:
+
+STEP 4:
+
+STEP 5:
+
+
+Work in groups to see if you can start work on the problem...
